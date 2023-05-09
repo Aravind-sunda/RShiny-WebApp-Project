@@ -1,0 +1,336 @@
+---
+title: "Scratchpad"
+author: "Aravind"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(data.table)
+library(tidyverse)
+library(GEOquery)
+library(plotly)
+library(PCAtools)
+```
+
+```{r}
+samplepath <- "Data/GSE64810_series_matrix.txt"
+# samplelines <- readLines(samplepath)
+# GEOID <-getGEO(GEO = "GSE64810")
+# # length of GEOID
+# length(GEOID)
+# 
+# GEO_obj<- GEOID[[1]]
+# 
+# exprs(GEO_obj)
+# pData(GEO_obj)
+# 
+# samples<- GEOquery::parseGEO(samplepath)
+
+#Provide functionality to give GEO accession number as well
+
+#Parse through the given file or use the GEO accession ID
+GEO_data <- function(filepath = NULL, geo_id = NULL) {
+  if (!is.null(geo_id)) {
+    GEO_obj <- getGEO(GEO = geo_id)
+    GEO_obj <- GEO_obj[[1]]
+    phenodata <- pData(GEO_obj)
+    return(phenodata)
+  } 
+    else if (!is.null(filepath)) {
+    GEO_obj <- GEOquery::parseGEO(filepath)
+    phenodata <- pData(GEO_obj)
+    return(phenodata)
+  } 
+    else {
+    stop("Either geo_id or filepath must be provided and valid")
+  }
+}
+
+gh <- GEO_data(filepath = samplepath)
+
+
+```
+
+```{r}
+phenotable <- GEO_data(filepath = samplepath)
+subset <- phenotable %>% select(title, geo_accession,type,ends_with(":ch1"))
+colnames(subset) <- gsub(":ch1", "", colnames(subset))
+```
+
+
+# NORM COUNTS READ
+
+```{r}
+# normcounts <- fread(input = "Data/GSE64810_mlhd_DESeq2_norm_counts_adjust.txt")
+# 
+# filterednormcounts <- fread(input = "Data/GSE64810_mlhd_DESeq2_diffexp_DESeq2_outlier_trimmed_adjust.txt")
+
+# list <- new[,(!colnames(new) %in% subset$title)]
+
+# list <- all(colnames(new) %in% subset$title)
+
+# setdiff(colnames(new[,-1]), subset$title)
+```
+
+```{r}
+col_types <- sapply(subset, typeof)
+col_types
+
+cols_to_change <- c("age of death", "age of onset", "cag", "duration","h-v cortical score","h-v striatal score","pmi","rin","mrna-seq reads")
+
+# Loop through the selected columns and change their types to numeric
+for (col in cols_to_change) {
+  subset[[col]] <- as.numeric(subset[[col]])
+}
+
+
+new_df <- data.frame(col_name = character(),
+                     type = character(),
+                     mean_or_uniquevalues = character(),
+                     sd = character(),
+                     stringsAsFactors = FALSE)
+
+for (col_name in colnames(subset)) {
+  # Check if the column is numeric
+  if (typeof(subset[[col_name]]) == "double") {
+    col_mean <- mean(subset[[col_name]],na.rm = TRUE)
+    col_sd <- sd(subset[[col_name]],na.rm = TRUE)
+    # Add the output to the new data frame as a row
+    new_row <- data.frame(column = col_name, type = "double" ,mean_or_uniquevalues = col_mean, sd = col_sd)
+    new_df <- rbind(new_df, new_row)
+  } 
+    if (typeof(subset[[col_name]]) == "character"){
+      unique <-unique(subset[[col_name]])
+      new_row <- data.frame(column = col_name, type = "character" ,mean_or_uniquevalues = paste(unique, collapse = ","), sd = "null")
+      new_df <- rbind(new_df, new_row)
+  }
+}
+
+```
+
+
+
+
+
+```{r}
+DEpath <- "Data/GSE64810_mlhd_DESeq2_diffexp_DESeq2_outlier_trimmed_adjust.txt"
+
+countpath <- "Data/GSE64810_mlhd_DESeq2_norm_counts_adjust.txt"
+norm_counts <- fread(countpath)
+
+dim(norm_counts)
+
+
+# countsfilter <- function(data,varfilter,zerofilter){
+#     df_filtered <- data %>%
+#         rowwise() %>%
+#         filter(var(c_across(-1))>zerofilter)
+#     return(df_filtered)
+# }
+# 
+# new <- countsfilter(norm_counts,varfilter = 5,zerofilter = 10)
+```
+
+```{r}
+# plot_type <- "Density"
+# column1 <- "age of death"
+# column1<- "mrna-seq reads"
+# column2 <- "diagnosis"
+# column2 <- "vonsattel grade"
+# xlab <- column1
+# ylab <- column2
+# title <-paste(plot_type,"plot of",column1,"vs",column2)
+
+# plot<- ggplot(data = subset)+
+#     geom_histogram(mapping = aes(x = subset[[column1]],fill = subset[[column2]]), alpha = 0.5)+
+#     labs(title = title,x = xlab,y = ylab, fill = column2)+
+#     theme_light()
+# 
+# plotly <- ggplotly(plot)
+#     
+# plotly
+
+# plot <- ggplot(data = subset)+
+#     geom_violin(mapping = aes(x = subset[[column2]], y = subset[[column1]], fill = subset[[column2]]))+
+#     labs(title = title,x = column2,y = column1, fill = column2)+
+#     theme_light()
+# 
+# plot
+sampleplot <- function(data = NULL,column = "age of death",group = "diagnosis",plottype = "Histogram"){
+    title <- paste(plottype,"plot of",column,"grouped by",group)
+    
+    if(plottype == "Density"){
+        plot <- ggplot(data = data)+
+        geom_density(mapping = aes(x = subset[[column]],fill = subset[[group]]), alpha = 0.5)+
+        labs(title = title,x = column,y = "Counts", fill = group)+
+        theme_light()
+    }
+    if(plottype =="Histogram"){
+        plot <- ggplot(data = data)+
+        geom_histogram(mapping = aes(x = subset[[column]],fill = subset[[group]]), alpha = 0.5)+
+        labs(title = title,x = column,y = "Counts", fill = group)+
+        theme_light()
+    }
+    
+    if(plottype == "Violin"){
+        plot <- ggplot(data = data)+
+        geom_violin(mapping = aes(x = subset[[group]], y = subset[[column]], fill = subset[[group]]), alpha = 0.5)+
+        labs(title = title,x = group,y = column, fill = group)+
+        theme_light()
+    }
+    
+    if(plottype %in% c("Density","Histogram")){
+        plot <- ggplotly(plot)
+    }
+    
+    return(plot)
+}
+
+newplot <- sampleplot(data = subset, column = "duration", group = "diagnosis", plottype = "Density")
+print(newplot)
+
+as.integer(dim(subset)[1])
+nrow(subset)
+```
+
+```{r}
+countsfilter <- function(data, varfilter, zerofilter) {
+    keep_gene <- apply(data[,-1], 1, function(x) {
+        var_x <- var(x)
+        zero_count <- sum(x == 0)
+        return(var_x > varfilter & zero_count < zerofilter)
+    })
+    df_filtered <- subset(data, keep_gene)
+    return(df_filtered)
+}
+
+
+
+```
+
+```{r}
+
+# filter_genes <- function(data, zero_filter_value) {
+#   zero_counts <- rowSums(data[, -1] == 0) # Assuming first column contains gene names
+#   filtered_data <- data[zero_counts < zero_filter_value, ]
+#   return(filtered_data)
+# }
+# 
+# filter_genes(norm_counts,zero_filter_value = 40)
+
+filter_genes <- function(data, zero_filter_value, var_percentile) {
+    # Calculate gene variances
+    gene_variances <- apply(data[, -1], MARGIN = 1, var)
+    
+    # Calculate gene variance percentiles
+    gene_percentiles <- rank(gene_variances) / length(gene_variances)
+    
+    # Filter genes by zero counts and variance percentiles
+    zero_counts <- rowSums(data[, -1] == 0) # Assuming first column contains gene names
+    filtered_data <- data[zero_counts <= zero_filter_value & gene_percentiles >= var_percentile/100, ]
+    
+    return(filtered_data)
+}
+
+
+filter_genes(data = norm_counts,zero_filter_value = 70,var_percentile = 0)
+```
+
+```{r}
+PCA <- function(fdata){
+    
+    df <- fdata %>% column_to_rownames("V1") %>% as.data.frame()
+    pca_results <- prcomp(scale(t(df)), center=FALSE, scale=FALSE)
+    options <- colnames(pca_results$x)
+    return(list(pca_results,options))
+}
+
+PCAPlot <- function(pcadata, pca, pcb, metadata){
+    pca_no <- as.numeric(gsub("[^0-9.]+", "", pca))
+    pcb_no <- as.numeric(gsub("[^0-9.]+", "", pcb))
+    
+    var_pc1 <- (X$sdev[pca_no]^2 / sum(X$sdev^2)) * 100
+    var_pc2 <- (X$sdev[pcb_no]^2 / sum(X$sdev^2)) * 100
+    
+    plot<- ggplot(data = as_tibble(pca_results$x))+
+        geom_point(mapping = aes(x = PC5, y= PC6, color = met$diagnosis))+
+        xlab(paste0("PC",pca_no,": ",signif(var_pc1, 2),"% variance")) +
+        ylab(paste("PC",pcb_no,": ",signif(var_pc2, 2),"% variance")) + 
+        labs(color = "Diagnosis")
+    return(plot)
+}
+
+
+results <- PCA(norm_counts)
+
+pcres <- results[1]
+options <- results[2]
+
+np <- PCAPlot(pcres, "PC30", "PC40", subset)
+
+np
+```
+
+```{r}
+DE_file <- read_tsv(file = file.path("Data/GSE64810_mlhd_DESeq2_diffexp_DESeq2_outlier_trimmed_adjust.txt"))
+
+# my_list <- norm_counts$V1
+# saveRDS(my_list, "ensembl_ids.rds")
+```
+
+```{r}
+
+
+
+#     v_gene <- norm_counts %>% filter(V1 == "ENSG00000000419.8") %>% select(-1) %>% t() %>% tibble(count = as.numeric(.)) %>% select(-1) %>% pull(count)
+#     v_variable <- subset%>% pull("duration")
+#     disease_status <- subset %>% pull(diagnosis)
+#     sample <- subset %>% pull(title)
+#     data_table <- tibble(counts = v_gene, variable = v_variable, status = disease_status, sample = sample)
+#     
+#     p <- plot_ly(data_table, x = ~variable, y = ~counts, color = ~status, text = ~sample) %>%
+#   add_markers() %>%
+#   layout(xaxis = list(title = "Duration"), yaxis = list(title = "Counts"), showlegend = TRUE)
+# p
+
+    
+
+geneexpression <- function(sampledata = NULL, countsdata = NULL, gene = NULL, variable = NULL) {
+  v_gene <- countsdata %>% filter(V1 == gene) %>% select(-1) %>% t() %>% tibble(count = as.numeric(.)) %>% select(-1) %>% pull(count)
+  v_variable <- sampledata %>% pull(variable)
+  disease_status <- sampledata %>% pull(diagnosis)
+  sample <- sampledata %>% pull(title)
+  data_table <- tibble(counts = v_gene, variable = v_variable, status = disease_status, sample = sample)
+  
+  p <- plot_ly(data_table, x = ~variable, y = ~counts, color = ~status, text = ~sample) %>%
+    add_markers() %>%
+    layout(xaxis = list(title = variable), yaxis = list(title = "Counts"), showlegend = TRUE)
+  
+  return(p)
+}
+
+g <- geneexpression(sampledata = subset, countsdata = norm_counts, gene = "ENSG00000000419.8", variable = "age of death")
+g
+```
+
+```{r}
+
+performPCA <- function(fdata){
+    object <- PCAtools::pca(norm_counts[,-1])
+    return(object)
+}
+
+# use object to get the options
+
+pcaplot <- function(pca_obj, pca, pcb, loadings = FALSE ){
+    plot <- biplot(pca_obj, x = pca, y=pcb, showLoadings = loadings)
+}
+
+
+pc <- PCAtools::pca(norm_counts[,-1])
+pc$
+biplot(pc, x = "PC1", y="PC2", showLoadings = TRUE)
+```
+
