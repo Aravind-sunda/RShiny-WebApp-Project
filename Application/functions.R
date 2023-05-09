@@ -43,7 +43,7 @@ filtering <- function(data){
     return(subset)
 }
 
-## Funtion 3 Summary Table generation
+## Function 3 Summary Table generation
 summaryfunction <- function(data){
     new_df <- data.frame(col_name = character(),
                          type = character(),
@@ -125,6 +125,78 @@ filter_genes <- function(data, zero_filter_value, var_percentile) {
 }
 
 ## Function 3--> Diagnostic plot
+## a median vs variance
+med_vs_var <- function(counts_tib, perc_var){
+
+        #make a plot tibble - calculate variance and median
+        plot_tib <- counts_tib%>%
+            mutate(Median = apply(counts_tib[,-1], MARGIN = 1, FUN = median),
+                   Variance = apply(counts_tib[,-1], MARGIN = 1, FUN = var))
+        perc_val <- quantile(plot_tib$Variance, probs = perc_var/100)   #calculate percentile
+        plot_tib <- plot_tib %>% mutate(threshold = case_when(Variance >= perc_val ~ "TRUE", TRUE ~ "FALSE")) #sort genes by percentile
+        #plot scatter plot
+        cols <- c("FALSE" = "red", "TRUE" = "black")
+        scatter <- ggplot(plot_tib, aes(Median, Variance))+
+            geom_point(aes(color=threshold), alpha=0.75)+
+            scale_color_manual(values = cols)+
+            labs(title = 'Plot of Median vs Variance.', subtitle = "Genes filtered out are in red. X and Y axes are log-scaled.")+
+            scale_y_log10()+
+            scale_x_log10()+
+            theme_linedraw()+
+            theme(legend.position = 'bottom')
+        return(scatter)
+}
+
+## b
+# med_vs_nz <- function(counts_tib, nz_genes){
+#     tot_samp <- ncol(counts_tib)-1  #store original number of samples
+#     #make a plot tibble
+#     plot_tib <- counts_tib %>%
+#         mutate(Median = na_if(apply(counts_tib[,-1], MARGIN = 1, FUN = median), 0))  #calculate median, convert 0 to NA
+#     plot_tib$no_zeros <- rowSums(is.na(plot_tib))  #make new col, with counts.
+#     plot_tib <- plot_tib %>% mutate(thresh = case_when(no_zeros <= nz_genes ~ "TRUE", TRUE ~ "FALSE")) #sort genes based on number of zeroes
+#     #plot scatter plot
+#     cols <- c("FALSE" = "red", "TRUE" = "black")
+#     scatter <- ggplot(plot_tib, aes(Median, no_zeros))+
+#         geom_point(aes(color=thresh), alpha=0.75)+
+#         scale_color_manual(values = cols)+
+#         scale_x_log10()+
+#         labs(title = 'Plot of Median vs Number of Non-Zero genes', subtitle = "Genes filtered out are in red. X-axis is log scaled.")+
+#         theme_bw()+
+#         ylab('Number of samples with zero count')+
+#         theme(legend.position = 'bottom')
+#     return(scatter)
+# }
+
+med_vs_nz<- function(dataf, slider_var, slider_num){
+    stats_df <- dataf
+    stats_df$variance <- apply(dataf[,-1], 1, var)
+    stats_df <- arrange(stats_df, by=variance)
+    stats_df$rank <- rank(stats_df$variance)
+    stats_df$nonzero <- rowSums(dataf[,-1]!=0)
+    stats_df$median <- apply(dataf[,-1], 1, median)
+    filtered_status <- stats_df %>%
+        mutate(filter_status=ifelse(rank >= nrow(stats_df)*(slider_var/100) & nonzero >= slider_num, 'pass filter', 'filtered out'))
+    # p1 <- ggplot(filtered_status, aes(x=variance, y=median, color=filter_status)) +
+    #     geom_point() +
+    #     scale_y_log10() +
+    #     scale_x_log10() +
+    #     labs(x='Percentile of Variance', y='Median Number of Counts', color='Filter Status', main='Median Counts vs. Percentile Variance') +
+    #     theme_dark() +
+    #     scale_color_brewer(palette="Greens")
+
+    p2 <- ggplot(filtered_status, aes(x= nonzero , y=median, color=filter_status)) +
+        geom_point() +
+        scale_y_log10() +
+        labs(x='Number of Non-Zero Samples', y='Median Number of Counts', color='Filter Status', main='Median Counts vs. Number of Non-Zero Samples') +
+        theme_linedraw() +
+        scale_color_brewer(palette="Set1")+
+        theme(legend.position = 'bottom')
+    # grid.arrange(p1, p2, nrow = 1)
+    return(p2)
+}
+
+
 
 
 ## Function 4 --> Heatmap

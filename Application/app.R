@@ -47,8 +47,21 @@ body<- dashboardBody(
     tabItems(
         tabItem(tabName = "about",
                 h1("mRNA-seq Data Analysis of patients with Huntington's Disease Post-mortem"),
-                h3(strong("About")),
-                p("This data is obtained from....")
+                h3(strong("Credits")),
+                p("This project was developed by Aravind Sundaravadivelu"),
+                p("This data is obtained from https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE64810"),
+                h3(strong("Summary")),
+                p("Huntington’s Disease (HD) is a devastating neurodegenerative disorder that is caused by an expanded CAG trinucleotide repeat in the Huntingtin (HTT) gene. Transcriptional dysregulation in the human HD brain has been documented but is incompletely understood. Here we present a genome-wide analysis of mRNA expression in human prefrontal cortex from 20 HD and 49 neuropathologically normal controls using next generation high-throughput sequencing. Surprisingly, 19% (5,480) of the 28,087 confidently detected genes are differentially expressed (FDR<0.05) and are predominantly up-regulated. A novel hypothesis-free geneset enrichment method that dissects large gene lists into functionally and transcriptionally related groups discovers that the differentially expressed genes are enriched for immune response, neuroinflammation, and developmental genes. Markers for all major brain cell types are observed, suggesting that HD invokes a systemic response in the brain area studied. Unexpectedly, the most strongly differentially expressed genes are a homeotic gene set (represented by Hox and other homeobox genes), that are almost exclusively expressed in HD, a profile not widely implicated in HD pathogenesis. The significance of transcriptional changes of developmental processes in the HD brain is poorly understood and warrants further investigation. The role of inflammation and the significance of non-neuronal involvement in HD pathogenesis suggest anti-inflammatory therapeutics may offer important opportunities in treating HD."),
+                h3(strong("Citation")),
+                p(
+                tags$ol(
+                    tags$li("Labadorf A, Hoss AG, Lagomarsino V, Latourelle JC et al. RNA Sequence Analysis of Human Huntington Disease Brain Reveals an Extensive Increase in Inflammatory and Developmental Gene Expression. PLoS One 2015;10(12):e0143563. PMID: 26636579"),
+                    tags$li("Labadorf A, Choi SH, Myers RH. Evidence for a Pan-Neurodegenerative Disease Response in Huntington's and Parkinson's Disease Expression Profiles. Front Mol Neurosci 2017;10:430. PMID: 29375298"),
+                    tags$li("Agus F, Crespo D, Myers RH, Labadorf A. The caudate nucleus undergoes dramatic and unique transcriptional changes in human prodromal Huntington's disease brain. BMC Med Genomics 2019 Oct 16;12(1):137. PMID: 31619230")
+
+                )
+                )
+
         ),
 ## Samples Tab--------
         tabItem(tabName = "samples",
@@ -119,18 +132,23 @@ body<- dashboardBody(
                 # conditionalPanel()
                 fluidRow(
                     tabBox(
-                        title = "Filtered Counts Analysis", id = "fcanal",side = "right", width = 12,
+                        title = "Filtered Counts Analysis", id = "fcanal",side = "right", width = 12,height = 900,
+
                         tabPanel(title = "Scatter Plot",
                                  p(strong("This tab displays the scatter plot showing the genes that have been filtered out")),
-                                 plotlyOutput("plot_variance"),
-                                 plotlyOutput("plot_zeros")
+                                 plotOutput("plot_variance"),
+                                 plotOutput("plotzeros")
                                  ),
                         tabPanel(title = "Heatmap",
                                  fluidRow(
-                                          column(width = 4, radioButtons("log_trans","Enabling log-transforming counts for visualization:",choices = c("TRUE", "FALSE")),
+                                          column(width = 2, radioButtons("log_trans","Enabling log-transforming counts for visualization:",choices = c("TRUE", "FALSE")),
                                                  actionButton(inputId = "heatmapsubmit", label = "Submit")),
-                                          column(width = 8,
-                                                 plotOutput("heatmapplot"))
+                                          column(width = 10,
+                                                 conditionalPanel("input.heatmapsubmit",
+                                                                  withSpinner(plotOutput("heatmapplot"))
+                                                                  )
+                                                 )
+
                                           )
                                  ),
                         tabPanel(title = "PCA plots",
@@ -328,34 +346,31 @@ server <- function(input, output,session) {
 
         })
 
+        output$plot_variance <- renderPlot({
+            med_vs_var(counts_tib = countstable,perc_var = input$varianceslider)
+        })
+
+
+        output$plotzeros <- renderPlot({
+            med_vs_nz(#counts_tib = , nz_genes = input$zeroslider
+                      dataf = countstable, slider_var = input$varianceslider, slider_num = input$zeroslider)
+        })
+
         observeEvent(input$PCsubmit,{
             output$pcaplot <- renderPlot({
                 pcaplot(pca_obj = pca_object,pca = input$PC_A, pcb = input$PC_B, loadings = FALSE )
             })
         })
 
-        # output$plot_variance <- renderPlotly({
-        #
-        # })
+
 
         observeEvent(input$heatmapsubmit,{
             output$heatmapplot <- renderPlot({
-                plot_heatmap(filtered_data,input$log_trans)})
+                plot_heatmap(filtered_data,input$log_trans)},width = 1000, height = 600)
 
         })
 
-        #
-        # output$plotzeros <- renderPlotly({
-        #
-        # })
 
-        # output$heatmap <- renderPlot({
-        #
-        # })
-
-        output$pca <- renderPlot({
-
-        })
 
     })
 
